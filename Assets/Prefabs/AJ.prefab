@@ -709,10 +709,11 @@ MonoBehaviour:
   investigationRadius: 17.5
   investigationPoints: 5
   waitAtInvestigationPoint: 1
-  attackDistance: 1.5
+  attackDistance: 5
   attackDamage: 40
   attackCooldown: 1.5
   attackDelay: 1
+  stopDistance: 5
   attackRayHeight: 1
   attackRayCount: 7
   attackAngle: 90

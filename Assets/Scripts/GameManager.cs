@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -11,6 +12,10 @@ public class GameManager : MonoBehaviour
     [Header("Notification Panel")]
     public GameObject image;
     private TMP_Text text;
+
+    [Header("Pause")]
+    public GameObject pausePanel;
+    private bool isPaused = false;
 
 
     void Start()
@@ -37,6 +42,9 @@ public class GameManager : MonoBehaviour
         text = image.GetComponentInChildren<TMP_Text>();
 
         ShowNotification(0);
+
+        Time.timeScale = 1f;
+        pausePanel.SetActive(false);
     }
 
     public void ShowNotification(int decrement)
@@ -53,5 +61,34 @@ public class GameManager : MonoBehaviour
         yield return new WaitForSeconds(3f); 
 
         image.SetActive(false);
+    }
+
+    public void PauseGame()
+    {
+        isPaused = true;
+        pausePanel.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
+    public void ResumeGame()
+    {
+        isPaused = false;
+        pausePanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    public void RestartLevel()
+    {
+        Time.timeScale = 1f;
+
+        SceneManager.LoadScene(
+            SceneManager.GetActiveScene().buildIndex
+        );
+    }
+
+    public void MainMenu()
+    {
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenu");
     }
 }

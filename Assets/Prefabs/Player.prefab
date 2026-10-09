@@ -498,7 +498,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4f6c2a298ed9474a85b8ce490a815a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  moveSpeed: 5
+  moveSpeed: 13
   rotationSpeed: 10
   joystick: {fileID: 0}
 --- !u!95 &51063993313080124
@@ -549,7 +549,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 019c6fdbb8496e149af928fa2b72160f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAttack
-  attackRadius: 1.5
+  attackRadius: 5
   attackDamage: 100
   attackDelay: 0.3
   attackCooldown: 0.8

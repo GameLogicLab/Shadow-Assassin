@@ -3898,10 +3898,11 @@ MonoBehaviour:
   investigationRadius: 10
   investigationPoints: 5
   waitAtInvestigationPoint: 2
-  attackDistance: 1.5
+  attackDistance: 5
   attackDamage: 10
   attackCooldown: 1
   attackDelay: 1
+  stopDistance: 5
   attackRayHeight: 1
   attackRayCount: 7
   attackAngle: 90
