@@ -38,8 +38,10 @@ public class EnemyAI : MonoBehaviour
     public float attackDistance = 1.5f;
     public float attackDamage = 20f;
     public float attackCooldown = 1.5f;
-
     public float attackDelay = 0.5f;
+
+    [Header("Chase Stopping Distance")]
+    public float stopDistance = 1.5f;
 
     [Header("Attack Detection")]
     public float attackRayHeight = 1f;
@@ -66,6 +68,8 @@ public class EnemyAI : MonoBehaviour
 
     private float currentHealth;
     private bool isDead = false;
+
+    public GameManager gameManager;
 
     enum EnemyState
     {
@@ -114,6 +118,8 @@ public class EnemyAI : MonoBehaviour
         PickRandomRoamPoint();
 
         SetAnimation("Walk");
+
+        agent.stoppingDistance = stopDistance;
     }
 
 
@@ -266,6 +272,8 @@ public class EnemyAI : MonoBehaviour
     }
 
 
+    
+    
     void Chase()
     {
         agent.speed = chaseSpeed;
@@ -273,27 +281,43 @@ public class EnemyAI : MonoBehaviour
         if (player == null)
             return;
 
+        // Calculate distance between enemy and player.
+        Vector3 direction = player.position - transform.position;
+        direction.y = 0f;
 
-        if (IsPlayerInAttackRange())
+        float distanceToPlayer = direction.magnitude;
+
+        // Stop moving when close enough to attack.
+        if (distanceToPlayer <= stopDistance)
         {
-            Attack();
+            agent.isStopped = true;
+
+            FacePlayer();
+
+            if (IsPlayerInAttackRange())
+            {
+                Attack();
+            }
+            else
+            {
+                SetAnimation("Idle");
+            }
 
             return;
         }
 
-
+        // Continue chasing the player.
         if (DetectPlayer())
         {
             lastKnownPlayerPosition = player.position;
-
             playerMemoryTimer = playerMemoryTime;
 
             agent.isStopped = false;
 
+            // Stop short of the player's position.
+            agent.stoppingDistance = stopDistance;
             agent.SetDestination(player.position);
 
-            // NEW:
-            // Smoothly face the player while chasing
             FacePlayer();
 
             SetAnimation("Run");
@@ -301,11 +325,10 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-
         playerMemoryTimer = playerMemoryTime;
-
         currentState = EnemyState.LostPlayer;
     }
+
 
 
     // =========================================================
@@ -555,6 +578,9 @@ public class EnemyAI : MonoBehaviour
             nameof(Despawn),
             deathDespawnDelay
         );
+        
+        gameManager.ShowNotification(1);   
+        
     }
 
 
