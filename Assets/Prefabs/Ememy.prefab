@@ -812,6 +812,7 @@ GameObject:
   - component: {fileID: 6457933648037445007}
   - component: {fileID: 2947562141243165908}
   - component: {fileID: 3318037152457139582}
+  - component: {fileID: 4824172168657430667}
   m_Layer: 7
   m_Name: Ememy
   m_TagString: Untagged
@@ -884,11 +885,11 @@ MonoBehaviour:
   investigationRadius: 5
   investigationPoints: 5
   waitAtInvestigationPoint: 1
-  attackDistance: 2.1
-  attackDamage: 20
+  attackDistance: 2.6
+  attackDamage: 10
   attackCooldown: 1.5
-  attackDelay: 0.5
-  stopDistance: 2
+  attackDelay: 1.2
+  stopDistance: 2.5
   attackRayHeight: 1
   attackRayCount: 7
   attackAngle: 90
@@ -947,6 +948,18 @@ CapsuleCollider:
   m_Height: 3.78
   m_Direction: 1
   m_Center: {x: 0, y: 1.9, z: 0}
+--- !u!114 &4824172168657430667
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3510400191276674847}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c19e30d601f28ac40a340f4d44a078e8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyRadarTarget
 --- !u!1 &3645007350147234065
 GameObject:
   m_ObjectHideFlags: 0

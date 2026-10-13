@@ -1,0 +1,10 @@
+# ninja log v5
+48	1273	8136005837950624	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	38aca0677ba32f8f
+71	1291	8136005838047470	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	29487b4c0c61e1aa
+115	1313	8136005838377923	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	b663e024e5c7adab
+16	1328	8136005838444076	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	8743378bc7ab6765
+0	1376	8136005838951310	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	a8b43952e5d76120
+101	1492	8136005840251364	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	7bb347c9fdeeb09f
+90	1519	8136005840392265	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	aaadec7a66df9f79
+34	1610	8136005841296250	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	815b9302d2bd4195
+1626	1803	8136005843360166	C:/Users/Maharshi/Documents/Unity Projects/Unity Backup/Unity Git/Shadow Assassin/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4h603x2f/obj/arm64-v8a/libgame.so	d5becb1d1e75731b

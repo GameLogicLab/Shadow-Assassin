@@ -796,8 +796,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAttack
   attackRadius: 2.5
   attackDamage: 100
-  attackDelay: 0.3
-  attackCooldown: 0.8
+  attackDelay: 1.2
+  attackCooldown: 1.2
   animator: {fileID: 5157189041321484269}
   enemyLayer:
     serializedVersion: 2
@@ -828,7 +828,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4f6c2a298ed9474a85b8ce490a815a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  moveSpeed: 5
+  moveSpeed: 6
   rotationSpeed: 10
   joystick: {fileID: 0}
 --- !u!143 &3143533871344414092
@@ -855,7 +855,7 @@ CharacterController:
   m_StepOffset: 0.3
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!1 &1968546682220793232
 GameObject:
   m_ObjectHideFlags: 0

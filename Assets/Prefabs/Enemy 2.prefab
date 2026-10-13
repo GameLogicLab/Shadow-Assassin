@@ -325,6 +325,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: c92f7dda08f015141949b4fe8a3c7ea9, type: 3}
       insertIndex: -1
       addedObject: {fileID: 5922472891901732721}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: c92f7dda08f015141949b4fe8a3c7ea9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -2324306092801303336}
   m_SourcePrefab: {fileID: 100100000, guid: c92f7dda08f015141949b4fe8a3c7ea9, type: 3}
 --- !u!95 &1017369458204458341 stripped
 Animator:
@@ -407,11 +410,11 @@ MonoBehaviour:
   investigationRadius: 5
   investigationPoints: 5
   waitAtInvestigationPoint: 1
-  attackDistance: 1.5
+  attackDistance: 2.6
   attackDamage: 20
   attackCooldown: 1.5
   attackDelay: 0.5
-  stopDistance: 1.5
+  stopDistance: 2.5
   attackRayHeight: 1
   attackRayCount: 7
   attackAngle: 90
@@ -425,3 +428,15 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 8
   gameManager: {fileID: 0}
+--- !u!114 &-2324306092801303336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6031885991455112613}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c19e30d601f28ac40a340f4d44a078e8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyRadarTarget
