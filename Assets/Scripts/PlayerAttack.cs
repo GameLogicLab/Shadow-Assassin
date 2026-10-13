@@ -5,7 +5,7 @@ public class PlayerAttack : MonoBehaviour
     [Header("Attack")]
     public float attackRadius = 2.5f;
     public float attackDamage = 100f;
-    public float attackDelay = 0.3f;
+    public float attackDelay = 1f;
     public float attackCooldown = 0.8f;
 
     [Header("Animation")]

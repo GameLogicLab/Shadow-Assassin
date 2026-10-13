@@ -38,7 +38,7 @@ public class EnemyAI : MonoBehaviour
     public float attackDistance = 1.5f;
     public float attackDamage = 20f;
     public float attackCooldown = 1.5f;
-    public float attackDelay = 0.5f;
+    public float attackDelay = 1.2f;
 
     [Header("Chase Stopping Distance")]
     public float stopDistance = 1.5f;
