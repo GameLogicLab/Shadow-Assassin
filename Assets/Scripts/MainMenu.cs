@@ -6,6 +6,9 @@ public class MainMenu : MonoBehaviour
 {
     public GameObject mainMenuPanel;
     public GameObject levelPanel;
+    public AudioSource audioSource;
+    public AudioClip UIAudio;
+
     void Start()
     {
         levelPanel.SetActive(false);
@@ -19,7 +22,11 @@ public class MainMenu : MonoBehaviour
 
     public void levelSelection(int level)
     {
-        SceneManager.LoadScene("Level"+level);       
+        SceneManager.LoadScene("Level"+level); 
+        if (audioSource != null && UIAudio != null)
+        {
+            audioSource.PlayOneShot(UIAudio);
+        }
     }
 
     public void Quit()

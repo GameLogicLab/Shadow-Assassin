@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;   
 
 public class PlayerAttack : MonoBehaviour
 {
@@ -7,6 +8,7 @@ public class PlayerAttack : MonoBehaviour
     public float attackDamage = 100f;
     public float attackDelay = 1f;
     public float attackCooldown = 0.8f;
+    public float StopMovementTime = 0f;
 
     [Header("Animation")]
     public Animator animator;
@@ -23,25 +25,35 @@ public class PlayerAttack : MonoBehaviour
 
     private EnemyAI targetEnemy;
 
+    [Header("Audio")]
+    public AudioSource audioSource;
+    public AudioClip attackSound;
+
     void Start()
     {
         playerMovement = GetComponent<PlayerMovement>();
+
+        // Automatically find Animator if it was not assigned
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
     }
 
     void Update()
     {
+        // Reduce attack cooldown
         if (attackCooldownTimer > 0f)
         {
             attackCooldownTimer -= Time.deltaTime;
         }
 
-
+        // Continue the current attack
         if (isAttacking)
         {
             HandleAttack();
             return;
         }
-
 
         // Press E to attack
         if (Input.GetKeyDown(KeyCode.E))
@@ -50,120 +62,123 @@ public class PlayerAttack : MonoBehaviour
         }
     }
 
+    void LateUpdate()
+    {
+        // Reapply rotation after normal frame updates,
+        // helping prevent the Animator from overriding it.
+        if (isAttacking && targetEnemy != null)
+        {
+            FaceEnemy();
+        }
+    }
+
     public void TryAttack()
     {
-        // Still on cooldown
+        // Check cooldown
         if (attackCooldownTimer > 0f)
         {
             return;
         }
 
+        // Find the closest enemy inside attack radius
         EnemyAI enemy = FindClosestEnemy();
 
-
-        // No enemy found
         if (enemy == null)
         {
             Debug.Log("No enemy inside attack radius.");
             return;
         }
 
-
+        // Set the attack target
         targetEnemy = enemy;
-
-
         isAttacking = true;
-
         attackDelayTimer = attackDelay;
 
-
-        if (playerMovement != null)
-        {
-            playerMovement.enabled = false;
-        }
-
-
+        // Face the enemy immediately
         FaceEnemy();
-
 
         // Play attack animation
         if (animator != null)
         {
             animator.SetTrigger("Attack");
+            PlayAttackSound();
         }
 
-
-        Debug.Log(
-            "Player started attacking: " +
-            targetEnemy.name
-        );
+        Debug.Log("Player started attacking: " + targetEnemy.name);
     }
 
     void HandleAttack()
     {
-        // If enemy still exists,
-        // keep facing the enemy
+        // Keep facing the enemy while attacking
         if (targetEnemy != null)
         {
             FaceEnemy();
         }
 
+        DealDamage();
 
         // Reduce attack delay
         attackDelayTimer -= Time.deltaTime;
 
-
-        // Attack time reached
+        // Attack when the delay finishes
         if (attackDelayTimer <= 0f)
         {
             DealDamage();
 
+            // End the attack
             isAttacking = false;
-
             attackCooldownTimer = attackCooldown;
-
             targetEnemy = null;
-
-            if (playerMovement != null)
-            {
-                playerMovement.enabled = true;
-            }
         }
+        
+        StartCoroutine(StopMovement());
+    }
+
+    IEnumerator StopMovement()
+    {
+        // Allow player movement again
+        if (playerMovement != null)
+        {
+            playerMovement.enabled = false;
+        }
+
+        yield return new WaitForSeconds(StopMovementTime);
+
+        // Allow player movement again
+        if (playerMovement != null)
+        {
+            playerMovement.enabled = true;
+        }
+
     }
 
     EnemyAI FindClosestEnemy()
     {
-        Debug.Log("Find closedt enemy");
-        // Find all colliders inside attack radius
+        // Find colliders inside attack radius on the enemy layer
         Collider[] enemies = Physics.OverlapSphere(
             transform.position,
             attackRadius,
             enemyLayer
         );
 
-
         EnemyAI closestEnemy = null;
-
         float closestDistance = Mathf.Infinity;
 
-
-        foreach (Collider collider in enemies)
+        foreach (Collider enemyCollider in enemies)
         {
+            // EnemyAI may be on the collider's parent
             EnemyAI enemy =
-                collider.GetComponentInParent<EnemyAI>();
-
+                enemyCollider.GetComponentInParent<EnemyAI>();
 
             if (enemy == null)
             {
                 continue;
             }
 
-
             float distance = Vector3.Distance(
                 transform.position,
                 enemy.transform.position
             );
-
 
             if (distance < closestDistance)
             {
@@ -172,36 +187,40 @@ public class PlayerAttack : MonoBehaviour
             }
         }
 
-
         return closestEnemy;
+    }
+
+    public void PlayAttackSound()
+    {
+        if (audioSource != null && attackSound != null)
+        {
+            audioSource.PlayOneShot(attackSound);
+        }
     }
 
     void DealDamage()
     {
-        // No target
+        // Check whether the target still exists
         if (targetEnemy == null)
         {
+            Debug.Log("Attack cancelled: target enemy no longer exists.");
             return;
         }
 
-
-        // Check distance again
+        // Check the distance again before applying damage
         float distance = Vector3.Distance(
             transform.position,
             targetEnemy.transform.position
         );
 
-
-        // Enemy moved outside attack radius
         if (distance > attackRadius)
         {
             Debug.Log("Attack missed - enemy moved too far away.");
             return;
         }
 
-
+        // Deal damage to the enemy
         targetEnemy.TakeDamage(attackDamage);
-
 
         Debug.Log(
             "Player dealt " +
@@ -218,37 +237,30 @@ public class PlayerAttack : MonoBehaviour
             return;
         }
 
-
+        // Calculate direction from player to enemy
         Vector3 direction =
-            targetEnemy.transform.position -
-            transform.position;
+            targetEnemy.transform.position - transform.position;
 
-
+        // Ignore height differences
         direction.y = 0f;
 
-
-        if (direction == Vector3.zero)
+        // Avoid invalid rotation when positions overlap
+        if (direction.sqrMagnitude < 0.001f)
         {
             return;
         }
 
+        // Calculate the rotation facing the enemy
+        Quaternion targetRotation = Quaternion.LookRotation(direction);
 
-        Quaternion targetRotation =
-            Quaternion.LookRotation(direction);
-
-
-        transform.rotation =
-            Quaternion.Slerp(
-                transform.rotation,
-                targetRotation,
-                15f * Time.deltaTime
-            );
+        // Rotate immediately toward the enemy
+        transform.rotation = targetRotation;
     }
 
     void OnDrawGizmosSelected()
     {
+        // Display attack radius in the Scene view
         Gizmos.color = Color.red;
-
 
         Gizmos.DrawWireSphere(
             transform.position,

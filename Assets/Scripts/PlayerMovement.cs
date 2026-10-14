@@ -2,6 +2,7 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("Movement")]
     public float moveSpeed = 5f;
     public float rotationSpeed = 10f;
 
@@ -10,15 +11,29 @@ public class PlayerMovement : MonoBehaviour
     private CharacterController controller;
     private Animator animator;
 
+    [Header("Walking Audio")]
+    public AudioSource walkingAudioSource;
+    public AudioClip walkingSound;
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
         animator = GetComponent<Animator>();
+
+        // Assign the walking sound to the Audio Source
+        if (walkingAudioSource != null && walkingSound != null)
+        {
+            walkingAudioSource.clip = walkingSound;
+            walkingAudioSource.loop = true;
+            walkingAudioSource.playOnAwake = false;
+        }
     }
 
     void Update()
     {
-        Vector2 joystickInput = joystick.Input;
+        Vector2 joystickInput = joystick != null
+            ? joystick.Input
+            : Vector2.zero;
 
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
@@ -40,7 +55,7 @@ public class PlayerMovement : MonoBehaviour
 
         controller.Move(movement * moveSpeed * Time.deltaTime);
 
-        if (movement != Vector3.zero)
+        if (movement.sqrMagnitude > 0.001f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(movement);
 
@@ -51,8 +66,24 @@ public class PlayerMovement : MonoBehaviour
             );
         }
 
-        bool isMoving = movement != Vector3.zero;
+        bool isMoving = movement.sqrMagnitude > 0.001f;
 
-        animator.SetBool("isRunning", isMoving);
+        if (animator != null)
+        {
+            animator.SetBool("isRunning", isMoving);
+        }
+
+        // Play footsteps while moving
+        if (walkingAudioSource != null && walkingSound != null)
+        {
+            if (isMoving && !walkingAudioSource.isPlaying)
+            {
+                walkingAudioSource.Play();
+            }
+            else if (!isMoving && walkingAudioSource.isPlaying)
+            {
+                walkingAudioSource.Stop();
+            }
+        }
     }
 }

@@ -104,6 +104,13 @@ public class EnemyAI : MonoBehaviour
     private bool isAttacking = false;
     private float attackDelayTimer = 0f;
 
+    [Header("Audio")]
+    public AudioSource enemyAudioSource;
+    public AudioClip walkingAudio;
+    public AudioClip runningAudio;
+    public AudioClip attackingAudio;
+
+    private AudioClip currentMovementClip;
 
     void Start()
     {
@@ -477,6 +484,8 @@ public class EnemyAI : MonoBehaviour
                 animator.SetTrigger("Attack");
             }
 
+            PlayAttackAudio();
+
             Debug.Log("Enemy started attack!");
         }
     }
@@ -545,6 +554,7 @@ public class EnemyAI : MonoBehaviour
 
         isDead = true;
 
+        StopMovementAudio();
 
         if (agent != null)
         {
@@ -596,7 +606,7 @@ public class EnemyAI : MonoBehaviour
 
         agent.isStopped = false;
 
-        SetAnimation("Walk");
+        SetAnimation("Idle");
 
 
         if (DetectPlayer())
@@ -819,6 +829,19 @@ public class EnemyAI : MonoBehaviour
             "Run",
             animationName == "Run"
         );
+
+        if (animationName == "Walk")
+        {
+            PlayMovementAudio(walkingAudio);
+        }
+        else if (animationName == "Run")
+        {
+            PlayMovementAudio(runningAudio);
+        }
+        else
+        {
+            StopMovementAudio();
+        }
     }
 
 
@@ -851,7 +874,56 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
+    void PlayMovementAudio(AudioClip clip)
+    {
+        if (enemyAudioSource == null)
+            return;
 
+        // Do not restart the same movement sound every frame.
+        if (currentMovementClip == clip &&
+            enemyAudioSource.isPlaying)
+            return;
+
+        currentMovementClip = clip;
+
+        enemyAudioSource.Stop();
+
+        if (clip != null)
+        {
+            enemyAudioSource.clip = clip;
+            enemyAudioSource.loop = true;
+            enemyAudioSource.Play();
+        }
+    }
+
+    void StopMovementAudio()
+    {
+        currentMovementClip = null;
+
+        if (enemyAudioSource != null)
+        {
+            enemyAudioSource.Stop();
+            enemyAudioSource.loop = false;
+        }
+    }
+
+    void PlayAttackAudio()
+    {
+        if (attackingAudio == null)
+        {
+            Debug.LogError("Punch clip is missing!");
+            return;
+        }
+
+        Debug.Log("Punch clip: " + attackingAudio.name);
+
+        AudioSource.PlayClipAtPoint(
+            attackingAudio,
+            transform.position,
+            1f
+        );
+    }
+    
     void OnDrawGizmos()
     {
         Vector3 origin =
