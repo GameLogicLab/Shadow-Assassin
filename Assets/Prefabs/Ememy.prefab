@@ -873,8 +873,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAI
   player: {fileID: 0}
-  patrolSpeed: 3
-  chaseSpeed: 4
+  patrolSpeed: 4
+  chaseSpeed: 5
   rotationSpeed: 8
   roamRadius: 7.5
   waitAtRoamPoint: 1

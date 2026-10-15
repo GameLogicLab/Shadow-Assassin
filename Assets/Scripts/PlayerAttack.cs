@@ -101,8 +101,10 @@ public class PlayerAttack : MonoBehaviour
         if (animator != null)
         {
             animator.SetTrigger("Attack");
-            PlayAttackSound();
+            
         }
+
+        PlayAttackSound();
 
         Debug.Log("Player started attacking: " + targetEnemy.name);
     }
@@ -114,8 +116,6 @@ public class PlayerAttack : MonoBehaviour
         {
             FaceEnemy();
         }
-
-        DealDamage();
 
         // Reduce attack delay
         attackDelayTimer -= Time.deltaTime;
@@ -192,10 +192,19 @@ public class PlayerAttack : MonoBehaviour
 
     public void PlayAttackSound()
     {
-        if (audioSource != null && attackSound != null)
+        if (attackSound == null)
         {
-            audioSource.PlayOneShot(attackSound);
+            Debug.LogError("Player knife attack sound is missing!");
+            return;
         }
+
+        AudioSource.PlayClipAtPoint(
+            attackSound,
+            transform.position,
+            1f
+        );
+
+        Debug.Log("Player knife attack audio played: " + attackSound.name);
     }
 
     void DealDamage()
