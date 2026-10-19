@@ -68,6 +68,7 @@ public class EnemyAI : MonoBehaviour
 
     private float currentHealth;
     private bool isDead = false;
+    private bool killedByKunai = false;
 
     public GameManager gameManager;
 
@@ -111,6 +112,17 @@ public class EnemyAI : MonoBehaviour
     public AudioClip attackingAudio;
 
     private AudioClip currentMovementClip;
+
+    [Header("Blood Effect")]
+    public GameObject bloodEffectPrefab;
+    public Vector3 bloodEffectOffset = new Vector3(0f, 1f, 0f);
+
+    [Header("Death Sounds")]
+    public AudioClip knifeDeathSound;
+    public AudioClip kunaiDeathSound;
+
+    [Range(0f, 1f)]
+    public float deathSoundVolume = 1f;
 
     void Start()
     {
@@ -521,24 +533,75 @@ public class EnemyAI : MonoBehaviour
     }
 
 
+
+    // Existing calls default to a knife hit for backward compatibility.
     public void TakeDamage(float damage)
+    {
+        TakeDamage(damage, false);
+    }
+
+    // isKunai = true for kunai hits; false for knife hits.
+    public void TakeDamage(float damage, bool isKunai)
     {
         if (isDead)
             return;
 
-        currentHealth -= damage;
+        killedByKunai = isKunai;
 
-        currentHealth =
-            Mathf.Max(
-                currentHealth,
-                0f
+        if (bloodEffectPrefab != null)
+        {
+            Vector3 effectPosition =
+                transform.position + bloodEffectOffset;
+
+            GameObject effect = Instantiate(
+                bloodEffectPrefab,
+                effectPosition,
+                Quaternion.identity
             );
 
-        Debug.Log(
-            "Enemy Health: " +
-            currentHealth
-        );
+            ParticleSystem[] particleSystems =
+                effect.GetComponentsInChildren<ParticleSystem>(true);
 
+            float longestEffectTime = 0f;
+
+            foreach (ParticleSystem particles in particleSystems)
+            {
+                // Make sure the particle object is active.
+                particles.gameObject.SetActive(true);
+
+                // Play immediately, including child particle systems.
+                particles.Play(true);
+
+                var main = particles.main;
+
+                float lifetime = main.startLifetime.constantMax;
+                float effectTime = main.duration + lifetime;
+
+                if (main.startDelay.constantMax > 0f)
+                    effectTime += main.startDelay.constantMax;
+
+                longestEffectTime =
+                    Mathf.Max(longestEffectTime, effectTime);
+            }
+
+            if (particleSystems.Length > 0)
+            {
+                Destroy(effect, longestEffectTime + 0.2f);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "Blood effect prefab contains no ParticleSystem."
+                );
+
+                Destroy(effect, 2f);
+            }
+        }
+
+        currentHealth -= damage;
+        currentHealth = Mathf.Max(currentHealth, 0f);
+
+        Debug.Log("Enemy Health: " + currentHealth);
 
         if (currentHealth <= 0f)
         {
@@ -547,12 +610,15 @@ public class EnemyAI : MonoBehaviour
     }
 
 
+
     void Die()
     {
         if (isDead)
             return;
 
         isDead = true;
+
+        
 
         StopMovementAudio();
 
@@ -577,9 +643,11 @@ public class EnemyAI : MonoBehaviour
 
         if (animator != null)
         {
-            animator.SetTrigger("Death");
+            animator.SetTrigger(killedByKunai ? "KunaiDeath" : "KnifeDeath");
         }
 
+        AudioClip deathSound = killedByKunai ? kunaiDeathSound : knifeDeathSound;
+        PlayDeathSound(deathSound);
 
         Debug.Log("Enemy Died!");
 
@@ -593,6 +661,29 @@ public class EnemyAI : MonoBehaviour
         
     }
 
+
+    // Creates a separate temporary audio object so the sound survives enemy despawn.
+    private void PlayDeathSound(AudioClip clip)
+    {
+        if (clip == null)
+        {
+            Debug.LogWarning("Death sound is not assigned for " + gameObject.name);
+            return;
+        }
+
+        GameObject soundObject = new GameObject("TemporaryDeathSound");
+        soundObject.transform.position = transform.position;
+
+        AudioSource source = soundObject.AddComponent<AudioSource>();
+        source.playOnAwake = false;
+        source.spatialBlend = 0f;
+        source.volume = deathSoundVolume;
+        source.clip = clip;
+        source.Play();
+
+        Destroy(soundObject, clip.length + 0.2f);
+        Debug.Log("Playing death sound: " + clip.name);
+    }
 
     void Despawn()
     {

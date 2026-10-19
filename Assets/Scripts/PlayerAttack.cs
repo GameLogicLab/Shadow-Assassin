@@ -1,179 +1,229 @@
+
 using UnityEngine;
-using System.Collections;   
+using System.Collections;
 
 public class PlayerAttack : MonoBehaviour
 {
-    [Header("Attack")]
+    public enum WeaponType
+    {
+        Knife = 0,
+        Kunai = 1
+    }
+
+    [Header("Weapon Settings")]
+    public WeaponType defaultWeapon = WeaponType.Knife;
+
+    [Header("Knife Settings")]
     public float attackRadius = 2.5f;
-    public float attackDamage = 100f;
-    public float attackDelay = 1f;
+    public float knifeDamage = 100f;
+    public float attackDelay = 0.3f;
+
+    [Header("Kunai Aiming")]
+    public float kunaiAimRadius = 8f;
+
+    [Header("Kunai Settings")]
+    public GameObject kunaiProjectilePrefab;
+    public Transform kunaiSpawnPoint;
+    public float kunaiSpeed = 12f;
+    public float kunaiDamage = 50f;
+    public float kunaiLifetime = 3f;
+
+    [Header("Attack Settings")]
     public float attackCooldown = 0.8f;
-    public float StopMovementTime = 0f;
+    public LayerMask enemyLayer;
 
     [Header("Animation")]
     public Animator animator;
 
-    [Header("Layers")]
-    public LayerMask enemyLayer;
+    [Header("Facing Enemy")]
+    public float rotationSpeed = 15f;
 
+    private WeaponType selectedWeapon;
+    private float nextAttackTime;
+    private bool isAttacking;
     private PlayerMovement playerMovement;
 
-    private bool isAttacking = false;
-
-    private float attackDelayTimer = 0f;
-    private float attackCooldownTimer = 0f;
-
-    private EnemyAI targetEnemy;
-
-    [Header("Audio")]
-    public AudioSource audioSource;
-    public AudioClip attackSound;
-
-    void Start()
+    private void Start()
     {
         playerMovement = GetComponent<PlayerMovement>();
 
-        // Automatically find Animator if it was not assigned
+        selectedWeapon = (WeaponType)PlayerPrefs.GetInt(
+            "SelectedWeapon",
+            (int)defaultWeapon
+        );
+
         if (animator == null)
-        {
             animator = GetComponentInChildren<Animator>();
-        }
     }
 
-    void Update()
+    private void Update()
     {
-        // Reduce attack cooldown
-        if (attackCooldownTimer > 0f)
-        {
-            attackCooldownTimer -= Time.deltaTime;
-        }
-
-        // Continue the current attack
-        if (isAttacking)
-        {
-            HandleAttack();
-            return;
-        }
-
-        // Press E to attack
         if (Input.GetKeyDown(KeyCode.E))
-        {
             TryAttack();
-        }
-    }
-
-    void LateUpdate()
-    {
-        // Reapply rotation after normal frame updates,
-        // helping prevent the Animator from overriding it.
-        if (isAttacking && targetEnemy != null)
-        {
-            FaceEnemy();
-        }
     }
 
     public void TryAttack()
     {
-        // Check cooldown
-        if (attackCooldownTimer > 0f)
+        if (isAttacking || Time.time < nextAttackTime)
+            return;
+
+        if (animator == null)
         {
+            Debug.LogError("PlayerAttack: Animator is not assigned.");
             return;
         }
 
-        // Find the closest enemy inside attack radius
-        EnemyAI enemy = FindClosestEnemy();
-
-        if (enemy == null)
-        {
-            Debug.Log("No enemy inside attack radius.");
-            return;
-        }
-
-        // Set the attack target
-        targetEnemy = enemy;
+        nextAttackTime = Time.time + attackCooldown;
         isAttacking = true;
-        attackDelayTimer = attackDelay;
 
-        // Face the enemy immediately
-        FaceEnemy();
+        if (playerMovement != null)
+            playerMovement.enabled = false;
 
-        // Play attack animation
-        if (animator != null)
+        float currentRadius =
+            selectedWeapon == WeaponType.Kunai
+            ? kunaiAimRadius
+            : attackRadius;
+
+        EnemyAI target = FindClosestEnemy(currentRadius);
+
+        if (target != null)
+            FaceTarget(target.transform);
+
+        if (selectedWeapon == WeaponType.Knife)
         {
             animator.SetTrigger("Attack");
-            
+            StartCoroutine(KnifeAttackRoutine());
         }
-
-        PlayAttackSound();
-
-        Debug.Log("Player started attacking: " + targetEnemy.name);
+        else
+        {
+            animator.SetTrigger("KunaiThrow");
+            StartCoroutine(AttackLockRoutine());
+        }
     }
 
-    void HandleAttack()
+    private IEnumerator KnifeAttackRoutine()
     {
-        // Keep facing the enemy while attacking
-        if (targetEnemy != null)
-        {
-            FaceEnemy();
-        }
+        yield return new WaitForSeconds(attackDelay);
 
-        // Reduce attack delay
-        attackDelayTimer -= Time.deltaTime;
+        EnemyAI closestEnemy = FindClosestEnemy(attackRadius);
 
-        // Attack when the delay finishes
-        if (attackDelayTimer <= 0f)
-        {
-            DealDamage();
+        if (closestEnemy != null)
+            closestEnemy.TakeDamage(knifeDamage, false);
 
-            // End the attack
-            isAttacking = false;
-            attackCooldownTimer = attackCooldown;
-            targetEnemy = null;
-        }
-        
-        StartCoroutine(StopMovement());
+        yield return new WaitForSeconds(
+            Mathf.Max(0f, attackCooldown - attackDelay)
+        );
+
+        FinishAttack();
     }
 
-    IEnumerator StopMovement()
+    private IEnumerator AttackLockRoutine()
     {
-        // Allow player movement again
-        if (playerMovement != null)
-        {
-            playerMovement.enabled = false;
-        }
+        yield return new WaitForSeconds(attackCooldown);
+        FinishAttack();
+    }
 
-        yield return new WaitForSeconds(StopMovementTime);
+    private void FinishAttack()
+    {
+        isAttacking = false;
 
-        // Allow player movement again
         if (playerMovement != null)
-        {
             playerMovement.enabled = true;
-        }
-
     }
 
-    EnemyAI FindClosestEnemy()
+    // Calle\n event.
+    public void ThrowKunai()
     {
-        // Find colliders inside attack radius on the enemy layer
-        Collider[] enemies = Physics.OverlapSphere(
+        if (kunaiProjectilePrefab == null || kunaiSpawnPoint == null)
+        {
+            Debug.LogError(
+                "Assign the kunai prefab and spawn point in PlayerAttack."
+            );
+            return;
+        }
+
+        // Find the closest enemy within the kunai aiming radius.
+        EnemyAI target = FindClosestEnemy(kunaiAimRadius);
+
+        Vector3 throwDirection;
+
+        if (target != null)
+        {
+            // Aim toward the enemy, including their height.
+            throwDirection =
+                target.transform.position - kunaiSpawnPoint.position;
+
+            // Turn the player toward the enemy.
+            FaceTarget(target.transform);
+        }
+        else
+        {
+            // No enemy nearby: throw forward.
+            throwDirection = transform.forward;
+        }
+
+        if (throwDirection.sqrMagnitude < 0.001f)
+            throwDirection = transform.forward;
+
+        Quaternion throwRotation =
+            Quaternion.LookRotation(throwDirection.normalized);
+
+        GameObject projectile = Instantiate(
+            kunaiProjectilePrefab,
+            kunaiSpawnPoint.position,
+            throwRotation
+        );
+
+        KunaiProjectile kunai =
+            projectile.GetComponent<KunaiProjectile>();
+
+        if (kunai != null)
+        {
+            kunai.Launch(
+                kunaiSpeed,
+                kunaiDamage,
+                enemyLayer,
+                kunaiLifetime
+            );
+        }
+        else
+        {
+            Debug.LogError(
+                "Kunai prefab is missing KunaiProjectile.cs."
+            );
+
+            Destroy(projectile);
+        }
+    }
+
+    private void FaceTarget(Transform target)
+    {
+        Vector3 direction = target.position - transform.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.001f)
+            return;
+
+        transform.rotation = Quaternion.LookRotation(direction);
+    }
+
+    private EnemyAI FindClosestEnemy(float searchRadius)
+    {
+        Collider[] hits = Physics.OverlapSphere(
             transform.position,
-            attackRadius,
+            searchRadius,
             enemyLayer
         );
 
         EnemyAI closestEnemy = null;
         float closestDistance = Mathf.Infinity;
 
-        foreach (Collider enemyCollider in enemies)
+        foreach (Collider hit in hits)
         {
-            // EnemyAI may be on the collider's parent
-            EnemyAI enemy =
-                enemyCollider.GetComponentInParent<EnemyAI>();
+            EnemyAI enemy = hit.GetComponentInParent<EnemyAI>();
 
             if (enemy == null)
-            {
                 continue;
-            }
 
             float distance = Vector3.Distance(
                 transform.position,
@@ -190,90 +240,14 @@ public class PlayerAttack : MonoBehaviour
         return closestEnemy;
     }
 
-    public void PlayAttackSound()
+    private void OnDrawGizmosSelected()
     {
-        if (attackSound == null)
-        {
-            Debug.LogError("Player knife attack sound is missing!");
-            return;
-        }
-
-        AudioSource.PlayClipAtPoint(
-            attackSound,
-            transform.position,
-            1f
-        );
-
-        Debug.Log("Player knife attack audio played: " + attackSound.name);
-    }
-
-    void DealDamage()
-    {
-        // Check whether the target still exists
-        if (targetEnemy == null)
-        {
-            Debug.Log("Attack cancelled: target enemy no longer exists.");
-            return;
-        }
-
-        // Check the distance again before applying damage
-        float distance = Vector3.Distance(
-            transform.position,
-            targetEnemy.transform.position
-        );
-
-        if (distance > attackRadius)
-        {
-            Debug.Log("Attack missed - enemy moved too far away.");
-            return;
-        }
-
-        // Deal damage to the enemy
-        targetEnemy.TakeDamage(attackDamage);
-
-        Debug.Log(
-            "Player dealt " +
-            attackDamage +
-            " damage to " +
-            targetEnemy.name
-        );
-    }
-
-    void FaceEnemy()
-    {
-        if (targetEnemy == null)
-        {
-            return;
-        }
-
-        // Calculate direction from player to enemy
-        Vector3 direction =
-            targetEnemy.transform.position - transform.position;
-
-        // Ignore height differences
-        direction.y = 0f;
-
-        // Avoid invalid rotation when positions overlap
-        if (direction.sqrMagnitude < 0.001f)
-        {
-            return;
-        }
-
-        // Calculate the rotation facing the enemy
-        Quaternion targetRotation = Quaternion.LookRotation(direction);
-
-        // Rotate immediately toward the enemy
-        transform.rotation = targetRotation;
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        // Display attack radius in the Scene view
+        // Knife attack radius.
         Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(transform.position, attackRadius);
 
-        Gizmos.DrawWireSphere(
-            transform.position,
-            attackRadius
-        );
+        // Kunai targeting radius.
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, kunaiAimRadius);
     }
 }

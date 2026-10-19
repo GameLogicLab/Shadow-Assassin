@@ -908,6 +908,11 @@ MonoBehaviour:
   walkingAudio: {fileID: 8300000, guid: 23aa6c9ab6470784e98d73fa6b14b241, type: 3}
   runningAudio: {fileID: 8300000, guid: d4abb55c011e9db47a0d12d4b182403b, type: 3}
   attackingAudio: {fileID: 8300000, guid: c003a1c85927e9e48a7ded18f9af0ecc, type: 3}
+  bloodEffectPrefab: {fileID: 5691033704107521822, guid: 7754080d67a55b04bb789a9f35a764a2, type: 3}
+  bloodEffectOffset: {x: 0, y: 1, z: 0}
+  knifeDeathSound: {fileID: 8300000, guid: c431ded6aaf4a324092b04d6fb7257af, type: 3}
+  kunaiDeathSound: {fileID: 8300000, guid: c431ded6aaf4a324092b04d6fb7257af, type: 3}
+  deathSoundVolume: 1
 --- !u!195 &2947562141243165908
 NavMeshAgent:
   m_ObjectHideFlags: 0
