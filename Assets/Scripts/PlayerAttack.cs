@@ -1,4 +1,3 @@
-
 using UnityEngine;
 using System.Collections;
 
@@ -42,10 +41,19 @@ public class PlayerAttack : MonoBehaviour
     private float nextAttackTime;
     private bool isAttacking;
     private PlayerMovement playerMovement;
+    private PlayerWeaponVisuals weaponVisuals;
+
+    private static readonly int AttackTriggerHash = Animator.StringToHash("Attack");
+    private static readonly int KunaiThrowTriggerHash = Animator.StringToHash("KunaiThrow");
+
+    private readonly Collider[] hitBuffer = new Collider[16];
+
+    public WeaponType CurrentWeapon => selectedWeapon;
 
     private void Start()
     {
         playerMovement = GetComponent<PlayerMovement>();
+        weaponVisuals = GetComponent<PlayerWeaponVisuals>();
 
         selectedWeapon = (WeaponType)PlayerPrefs.GetInt(
             "SelectedWeapon",
@@ -59,7 +67,38 @@ public class PlayerAttack : MonoBehaviour
     private void Update()
     {
         if (Input.GetKeyDown(KeyCode.E))
+        {
             TryAttack();
+        }
+
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            SwitchWeapon();
+        }
+    }
+
+    public void SwitchWeapon()
+    {
+        selectedWeapon = (selectedWeapon == WeaponType.Knife) ? WeaponType.Kunai : WeaponType.Knife;
+        PlayerPrefs.SetInt("SelectedWeapon", (int)selectedWeapon);
+        PlayerPrefs.Save();
+
+        if (weaponVisuals != null)
+        {
+            weaponVisuals.RefreshVisuals((int)selectedWeapon);
+        }
+    }
+
+    public void SetWeapon(WeaponType weapon)
+    {
+        selectedWeapon = weapon;
+        PlayerPrefs.SetInt("SelectedWeapon", (int)selectedWeapon);
+        PlayerPrefs.Save();
+
+        if (weaponVisuals != null)
+        {
+            weaponVisuals.RefreshVisuals((int)selectedWeapon);
+        }
     }
 
     public void TryAttack()
@@ -79,11 +118,7 @@ public class PlayerAttack : MonoBehaviour
         if (playerMovement != null)
             playerMovement.enabled = false;
 
-        float currentRadius =
-            selectedWeapon == WeaponType.Kunai
-            ? kunaiAimRadius
-            : attackRadius;
-
+        float currentRadius = selectedWeapon == WeaponType.Kunai ? kunaiAimRadius : attackRadius;
         EnemyAI target = FindClosestEnemy(currentRadius);
 
         if (target != null)
@@ -91,12 +126,12 @@ public class PlayerAttack : MonoBehaviour
 
         if (selectedWeapon == WeaponType.Knife)
         {
-            animator.SetTrigger("Attack");
+            animator.SetTrigger(AttackTriggerHash);
             StartCoroutine(KnifeAttackRoutine());
         }
         else
         {
-            animator.SetTrigger("KunaiThrow");
+            animator.SetTrigger(KunaiThrowTriggerHash);
             StartCoroutine(AttackLockRoutine());
         }
     }
@@ -131,18 +166,16 @@ public class PlayerAttack : MonoBehaviour
             playerMovement.enabled = true;
     }
 
-    // Calle\n event.
+    // Called by animation event
     public void ThrowKunai()
     {
         if (kunaiProjectilePrefab == null || kunaiSpawnPoint == null)
         {
-            Debug.LogError(
-                "Assign the kunai prefab and spawn point in PlayerAttack."
-            );
+            Debug.LogError("Assign the kunai prefab and spawn point in PlayerAttack.");
             return;
         }
 
-        // Find the closest enemy within the kunai aiming radius.
+        // Find the closest alive enemy within the kunai aiming radius.
         EnemyAI target = FindClosestEnemy(kunaiAimRadius);
 
         Vector3 throwDirection;
@@ -150,23 +183,18 @@ public class PlayerAttack : MonoBehaviour
         if (target != null)
         {
             // Aim toward the enemy, including their height.
-            throwDirection =
-                target.transform.position - kunaiSpawnPoint.position;
-
-            // Turn the player toward the enemy.
+            throwDirection = target.transform.position - kunaiSpawnPoint.position;
             FaceTarget(target.transform);
         }
         else
         {
-            // No enemy nearby: throw forward.
             throwDirection = transform.forward;
         }
 
         if (throwDirection.sqrMagnitude < 0.001f)
             throwDirection = transform.forward;
 
-        Quaternion throwRotation =
-            Quaternion.LookRotation(throwDirection.normalized);
+        Quaternion throwRotation = Quaternion.LookRotation(throwDirection.normalized);
 
         GameObject projectile = Instantiate(
             kunaiProjectilePrefab,
@@ -174,8 +202,7 @@ public class PlayerAttack : MonoBehaviour
             throwRotation
         );
 
-        KunaiProjectile kunai =
-            projectile.GetComponent<KunaiProjectile>();
+        KunaiProjectile kunai = projectile.GetComponent<KunaiProjectile>();
 
         if (kunai != null)
         {
@@ -188,10 +215,7 @@ public class PlayerAttack : MonoBehaviour
         }
         else
         {
-            Debug.LogError(
-                "Kunai prefab is missing KunaiProjectile.cs."
-            );
-
+            Debug.LogError("Kunai prefab is missing KunaiProjectile.cs.");
             Destroy(projectile);
         }
     }
@@ -209,30 +233,32 @@ public class PlayerAttack : MonoBehaviour
 
     private EnemyAI FindClosestEnemy(float searchRadius)
     {
-        Collider[] hits = Physics.OverlapSphere(
+        int hitCount = Physics.OverlapSphereNonAlloc(
             transform.position,
             searchRadius,
+            hitBuffer,
             enemyLayer
         );
 
         EnemyAI closestEnemy = null;
-        float closestDistance = Mathf.Infinity;
+        float closestDistSqr = Mathf.Infinity;
+        Vector3 playerPos = transform.position;
 
-        foreach (Collider hit in hits)
+        for (int i = 0; i < hitCount; i++)
         {
-            EnemyAI enemy = hit.GetComponentInParent<EnemyAI>();
+            Collider hit = hitBuffer[i];
+            if (hit == null) continue;
 
-            if (enemy == null)
+            EnemyAI enemy = hit.GetComponentInParent<EnemyAI>();
+            if (enemy == null || enemy.IsDead)
                 continue;
 
-            float distance = Vector3.Distance(
-                transform.position,
-                enemy.transform.position
-            );
+            Vector3 diff = enemy.transform.position - playerPos;
+            float distSqr = diff.sqrMagnitude;
 
-            if (distance < closestDistance)
+            if (distSqr < closestDistSqr)
             {
-                closestDistance = distance;
+                closestDistSqr = distSqr;
                 closestEnemy = enemy;
             }
         }

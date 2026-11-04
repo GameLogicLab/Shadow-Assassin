@@ -1,4 +1,3 @@
-
 using UnityEngine;
 
 public class WeaponSelectionUI : MonoBehaviour
@@ -15,45 +14,55 @@ public class WeaponSelectionUI : MonoBehaviour
 
     private void Start()
     {
-        // Load the previously selected weapon.
         selectedWeapon = PlayerPrefs.GetInt("SelectedWeapon", 0);
-
         UpdateHighlight();
     }
 
     public void SelectKnife()
     {
         selectedWeapon = 0;
-
         PlayerPrefs.SetInt("SelectedWeapon", selectedWeapon);
         PlayerPrefs.Save();
-
         UpdateHighlight();
+        ApplyToPlayer();
     }
 
     public void SelectKunai()
     {
         selectedWeapon = 1;
-
         PlayerPrefs.SetInt("SelectedWeapon", selectedWeapon);
         PlayerPrefs.Save();
-
         UpdateHighlight();
+        ApplyToPlayer();
+    }
+
+    private void ApplyToPlayer()
+    {
+        PlayerAttack playerAttack = FindAnyObjectByType<PlayerAttack>();
+        if (playerAttack != null)
+        {
+            playerAttack.SetWeapon((PlayerAttack.WeaponType)selectedWeapon);
+        }
     }
 
     private void UpdateHighlight()
     {
-        knifeSelectedHighlight.SetActive(selectedWeapon == 0);
-        kunaiSelectedHighlight.SetActive(selectedWeapon == 1);
+        if (knifeSelectedHighlight != null)
+            knifeSelectedHighlight.SetActive(selectedWeapon == 0);
+
+        if (kunaiSelectedHighlight != null)
+            kunaiSelectedHighlight.SetActive(selectedWeapon == 1);
     }
 
     public void OpenWeaponSelection()
     {
-        weaponSelectionPanel.SetActive(true);
+        if (weaponSelectionPanel != null)
+            weaponSelectionPanel.SetActive(true);
     }
 
     public void CloseWeaponSelection()
     {
-        weaponSelectionPanel.SetActive(false);
+        if (weaponSelectionPanel != null)
+            weaponSelectionPanel.SetActive(false);
     }
 }

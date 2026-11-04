@@ -70,6 +70,8 @@ public class EnemyAI : MonoBehaviour
     private bool isDead = false;
     private bool killedByKunai = false;
 
+    public bool IsDead => isDead;
+
     public GameManager gameManager;
 
     enum EnemyState
@@ -80,7 +82,7 @@ public class EnemyAI : MonoBehaviour
         Investigate
     }
 
-    EnemyState currentState = EnemyState.Patrol;
+    private EnemyState currentState = EnemyState.Patrol;
 
     private Vector3 roamPoint;
     private bool hasRoamPoint = false;
@@ -124,23 +126,49 @@ public class EnemyAI : MonoBehaviour
     [Range(0f, 1f)]
     public float deathSoundVolume = 1f;
 
+    // Cached Animator hashes for high performance (avoids string lookup every frame)
+    private static readonly int IdleHash = Animator.StringToHash("Idle");
+    private static readonly int WalkHash = Animator.StringToHash("Walk");
+    private static readonly int RunHash = Animator.StringToHash("Run");
+    private static readonly int AttackTriggerHash = Animator.StringToHash("Attack");
+    private static readonly int KnifeDeathTriggerHash = Animator.StringToHash("KnifeDeath");
+    private static readonly int KunaiDeathTriggerHash = Animator.StringToHash("KunaiDeath");
+
+    private string currentAnimState = string.Empty;
+
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            agent.updateRotation = false;
+            agent.speed = patrolSpeed;
+            agent.stoppingDistance = stopDistance;
+        }
 
-        agent.updateRotation = false;
+        if (animator == null)
+        {
+            animator = GetComponentInChildren<Animator>();
+        }
 
-        agent.speed = patrolSpeed;
+        if (player == null)
+        {
+            PlayerMovement pm = FindAnyObjectByType<PlayerMovement>();
+            if (pm != null)
+            {
+                player = pm.transform;
+            }
+        }
+
+        if (gameManager == null)
+        {
+            gameManager = GameManager.Instance;
+        }
 
         currentHealth = maxHealth;
-
         PickRandomRoamPoint();
-
         SetAnimation("Walk");
-
-        agent.stoppingDistance = stopDistance;
     }
-
 
     void Update()
     {
@@ -155,20 +183,13 @@ public class EnemyAI : MonoBehaviour
         if (playerSeen)
         {
             lastKnownPlayerPosition = player.position;
-
             hasLastKnownPlayerPosition = true;
-
             playerMemoryTimer = playerMemoryTime;
-
             currentState = EnemyState.Chase;
-
             hasInvestigationPoint = false;
-
             investigationCount = 0;
-
             waitingAtInvestigationPoint = false;
         }
-
 
         switch (currentState)
         {
@@ -189,52 +210,58 @@ public class EnemyAI : MonoBehaviour
                 break;
         }
 
-
         if (currentState != EnemyState.Chase)
         {
             SmoothRotation();
         }
     }
 
-
     bool DetectPlayer()
     {
-        Vector3 origin =
-            transform.position +
-            Vector3.up * rayHeight;
+        if (player == null) return false;
 
+        Vector3 toPlayer = player.position - transform.position;
+        float sqrDist = toPlayer.sqrMagnitude;
+
+        // Fast distance pre-check: skip all raycasts if player is out of range
+        if (sqrDist > rayDistance * rayDistance)
+        {
+            return false;
+        }
+
+        // Fast angle pre-check: skip if player is behind or outside the vision cone
+        Vector3 flatToPlayer = new Vector3(toPlayer.x, 0f, toPlayer.z);
+        float angleToPlayer = Vector3.Angle(transform.forward, flatToPlayer);
+        if (angleToPlayer > detectionAngle * 0.5f)
+        {
+            return false;
+        }
+
+        Vector3 origin = transform.position + Vector3.up * rayHeight;
+        Vector3 targetPos = player.position + Vector3.up * rayHeight;
+        Vector3 directDir = targetPos - origin;
+        float directDist = directDir.magnitude;
+
+        // Direct line of sight raycast
+        if (Physics.Raycast(origin, directDir.normalized, out RaycastHit directHit, directDist, playerLayer | obstacleLayer))
+        {
+            if (IsLayer(directHit.collider.gameObject, playerLayer))
+            {
+                return true;
+            }
+        }
+
+        // Peripheral raycasts fallback if direct center ray was clipped by a close edge
         for (int i = 0; i < rayCount; i++)
         {
-            float angle =
-                -detectionAngle / 2f +
-                (detectionAngle /
-                (rayCount - 1)) * i;
+            float angle = -detectionAngle / 2f + (detectionAngle / (rayCount - 1)) * i;
+            Vector3 direction = Quaternion.Euler(0f, angle, 0f) * transform.forward;
 
-            Vector3 direction =
-                Quaternion.Euler(
-                    0f,
-                    angle,
-                    0f
-                ) * transform.forward;
-
-            if (Physics.Raycast(
-                origin,
-                direction,
-                out RaycastHit hit,
-                rayDistance))
+            if (Physics.Raycast(origin, direction, out RaycastHit hit, rayDistance, playerLayer | obstacleLayer))
             {
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    playerLayer))
+                if (IsLayer(hit.collider.gameObject, playerLayer))
                 {
                     return true;
-                }
-
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    obstacleLayer))
-                {
-                    continue;
                 }
             }
         }
@@ -242,75 +269,58 @@ public class EnemyAI : MonoBehaviour
         return false;
     }
 
-
     void Patrol()
     {
-        agent.speed = patrolSpeed;
+        if (agent == null) return;
 
+        agent.speed = patrolSpeed;
         agent.isStopped = false;
 
         if (isWaiting)
         {
             SetAnimation("Idle");
-
             waitTimer -= Time.deltaTime;
 
             if (waitTimer <= 0f)
             {
                 isWaiting = false;
-
                 PickRandomRoamPoint();
             }
 
             return;
         }
 
-
         if (!hasRoamPoint)
         {
             PickRandomRoamPoint();
-
             return;
         }
 
-
         agent.SetDestination(roamPoint);
-
         SetAnimation("Walk");
 
-
-        if (!agent.pathPending &&
-            agent.remainingDistance <= agent.stoppingDistance)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
             isWaiting = true;
-
             waitTimer = waitAtRoamPoint;
-
             SetAnimation("Idle");
         }
     }
 
-
-    
-    
     void Chase()
     {
+        if (agent == null || player == null) return;
+
         agent.speed = chaseSpeed;
 
-        if (player == null)
-            return;
-
-        // Calculate distance between enemy and player.
         Vector3 direction = player.position - transform.position;
         direction.y = 0f;
-
         float distanceToPlayer = direction.magnitude;
 
         // Stop moving when close enough to attack.
         if (distanceToPlayer <= stopDistance)
         {
             agent.isStopped = true;
-
             FacePlayer();
 
             if (IsPlayerInAttackRange())
@@ -332,15 +342,11 @@ public class EnemyAI : MonoBehaviour
             playerMemoryTimer = playerMemoryTime;
 
             agent.isStopped = false;
-
-            // Stop short of the player's position.
             agent.stoppingDistance = stopDistance;
             agent.SetDestination(player.position);
 
             FacePlayer();
-
             SetAnimation("Run");
-
             return;
         }
 
@@ -348,76 +354,56 @@ public class EnemyAI : MonoBehaviour
         currentState = EnemyState.LostPlayer;
     }
 
-
-
-    // =========================================================
-    // NEW: FACE PLAYER
-    // =========================================================
-
     void FacePlayer()
     {
-        if (player == null)
-            return;
+        if (player == null) return;
 
-        Vector3 direction =
-            player.position -
-            transform.position;
-
+        Vector3 direction = player.position - transform.position;
         direction.y = 0f;
 
-        if (direction == Vector3.zero)
-            return;
+        if (direction.sqrMagnitude < 0.001f) return;
 
-        Quaternion targetRotation =
-            Quaternion.LookRotation(direction);
-
-        transform.rotation =
-            Quaternion.Slerp(
-                transform.rotation,
-                targetRotation,
-                rotationSpeed * Time.deltaTime
-            );
+        Quaternion targetRotation = Quaternion.LookRotation(direction);
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            targetRotation,
+            rotationSpeed * Time.deltaTime
+        );
     }
-
 
     bool IsPlayerInAttackRange()
     {
-        Vector3 origin =
-            transform.position +
-            Vector3.up * attackRayHeight;
+        if (player == null) return false;
+
+        Vector3 toPlayer = player.position - transform.position;
+        if (toPlayer.sqrMagnitude > attackDistance * attackDistance)
+        {
+            return false;
+        }
+
+        Vector3 origin = transform.position + Vector3.up * attackRayHeight;
+        Vector3 targetPos = player.position + Vector3.up * attackRayHeight;
+        Vector3 directDir = targetPos - origin;
+        float directDist = directDir.magnitude;
+
+        if (Physics.Raycast(origin, directDir.normalized, out RaycastHit directHit, directDist, playerLayer | obstacleLayer))
+        {
+            if (IsLayer(directHit.collider.gameObject, playerLayer))
+            {
+                return true;
+            }
+        }
 
         for (int i = 0; i < attackRayCount; i++)
         {
-            float angle =
-                -attackAngle / 2f +
-                (attackAngle /
-                (attackRayCount - 1)) * i;
+            float angle = -attackAngle / 2f + (attackAngle / (attackRayCount - 1)) * i;
+            Vector3 direction = Quaternion.Euler(0f, angle, 0f) * transform.forward;
 
-            Vector3 direction =
-                Quaternion.Euler(
-                    0f,
-                    angle,
-                    0f
-                ) * transform.forward;
-
-            if (Physics.Raycast(
-                origin,
-                direction,
-                out RaycastHit hit,
-                attackDistance))
+            if (Physics.Raycast(origin, direction, out RaycastHit hit, attackDistance, playerLayer | obstacleLayer))
             {
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    playerLayer))
+                if (IsLayer(hit.collider.gameObject, playerLayer))
                 {
                     return true;
-                }
-
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    obstacleLayer))
-                {
-                    continue;
                 }
             }
         }
@@ -425,35 +411,27 @@ public class EnemyAI : MonoBehaviour
         return false;
     }
 
-
     void Attack()
     {
-        agent.isStopped = true;
+        if (agent != null) agent.isStopped = true;
 
         SetAnimation("Idle");
 
         if (player != null)
         {
-            Vector3 direction =
-                player.position -
-                transform.position;
-
+            Vector3 direction = player.position - transform.position;
             direction.y = 0f;
 
-            if (direction != Vector3.zero)
+            if (direction.sqrMagnitude > 0.001f)
             {
-                Quaternion targetRotation =
-                    Quaternion.LookRotation(direction);
-
-                transform.rotation =
-                    Quaternion.Slerp(
-                        transform.rotation,
-                        targetRotation,
-                        rotationSpeed * Time.deltaTime
-                    );
+                Quaternion targetRotation = Quaternion.LookRotation(direction);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation,
+                    targetRotation,
+                    rotationSpeed * Time.deltaTime
+                );
             }
         }
-
 
         if (isAttacking)
         {
@@ -462,146 +440,91 @@ public class EnemyAI : MonoBehaviour
             if (attackDelayTimer <= 0f)
             {
                 DealDamage();
-
                 isAttacking = false;
-
                 attackTimer = attackCooldown;
             }
-
 
             if (!IsPlayerInAttackRange())
             {
                 isAttacking = false;
-
-                agent.isStopped = false;
-
+                if (agent != null) agent.isStopped = false;
                 currentState = EnemyState.Chase;
             }
 
             return;
         }
 
-
         attackTimer -= Time.deltaTime;
-
 
         if (attackTimer <= 0f)
         {
             isAttacking = true;
-
             attackDelayTimer = attackDelay;
 
             if (animator != null)
             {
-                animator.SetTrigger("Attack");
+                animator.SetTrigger(AttackTriggerHash);
             }
 
             PlayAttackAudio();
-
-            Debug.Log("Enemy started attack!");
         }
     }
-
 
     void DealDamage()
     {
-        if (player == null)
-            return;
+        if (player == null) return;
 
         if (!IsPlayerInAttackRange())
         {
-            Debug.Log("Attack missed!");
-
             return;
         }
 
-
-        PlayerHealth playerHealth =
-            player.GetComponent<PlayerHealth>();
-
-
+        PlayerHealth playerHealth = player.GetComponent<PlayerHealth>();
         if (playerHealth != null)
         {
             playerHealth.TakeDmg(attackDamage);
-
-            Debug.Log(
-                "Enemy dealt " +
-                attackDamage +
-                " damage!"
-            );
         }
     }
 
-
-
-    // Existing calls default to a knife hit for backward compatibility.
     public void TakeDamage(float damage)
     {
         TakeDamage(damage, false);
     }
 
-    // isKunai = true for kunai hits; false for knife hits.
     public void TakeDamage(float damage, bool isKunai)
     {
-        if (isDead)
-            return;
+        if (isDead) return;
 
         killedByKunai = isKunai;
 
         if (bloodEffectPrefab != null)
         {
-            Vector3 effectPosition =
-                transform.position + bloodEffectOffset;
+            Vector3 effectPosition = transform.position + bloodEffectOffset;
+            GameObject effect = Instantiate(bloodEffectPrefab, effectPosition, Quaternion.identity);
 
-            GameObject effect = Instantiate(
-                bloodEffectPrefab,
-                effectPosition,
-                Quaternion.identity
-            );
-
-            ParticleSystem[] particleSystems =
-                effect.GetComponentsInChildren<ParticleSystem>(true);
-
+            ParticleSystem[] particleSystems = effect.GetComponentsInChildren<ParticleSystem>(true);
             float longestEffectTime = 0f;
 
             foreach (ParticleSystem particles in particleSystems)
             {
-                // Make sure the particle object is active.
                 particles.gameObject.SetActive(true);
-
-                // Play immediately, including child particle systems.
                 particles.Play(true);
 
                 var main = particles.main;
-
                 float lifetime = main.startLifetime.constantMax;
                 float effectTime = main.duration + lifetime;
 
                 if (main.startDelay.constantMax > 0f)
                     effectTime += main.startDelay.constantMax;
 
-                longestEffectTime =
-                    Mathf.Max(longestEffectTime, effectTime);
+                longestEffectTime = Mathf.Max(longestEffectTime, effectTime);
             }
 
-            if (particleSystems.Length > 0)
-            {
-                Destroy(effect, longestEffectTime + 0.2f);
-            }
-            else
-            {
-                Debug.LogWarning(
-                    "Blood effect prefab contains no ParticleSystem."
-                );
-
-                Destroy(effect, 2f);
-            }
+            Destroy(effect, particleSystems.Length > 0 ? longestEffectTime + 0.2f : 2f);
         }
 
         currentHealth -= damage;
         currentHealth = Mathf.Max(currentHealth, 0f);
-
-        Debug.Log("Enemy Health: " + currentHealth);
 
         if (currentHealth <= 0f)
         {
@@ -609,16 +532,10 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-
-
     void Die()
     {
-        if (isDead)
-            return;
-
+        if (isDead) return;
         isDead = true;
-
-        
 
         StopMovementAudio();
 
@@ -628,61 +545,39 @@ public class EnemyAI : MonoBehaviour
             agent.enabled = false;
         }
 
-
         isAttacking = false;
 
-
-        Collider enemyCollider =
-            GetComponent<Collider>();
-
+        Collider enemyCollider = GetComponent<Collider>();
         if (enemyCollider != null)
         {
             enemyCollider.enabled = false;
         }
 
-
         if (animator != null)
         {
-            animator.SetTrigger(killedByKunai ? "KunaiDeath" : "KnifeDeath");
+            animator.SetTrigger(killedByKunai ? KunaiDeathTriggerHash : KnifeDeathTriggerHash);
         }
 
         AudioClip deathSound = killedByKunai ? kunaiDeathSound : knifeDeathSound;
         PlayDeathSound(deathSound);
 
-        Debug.Log("Enemy Died!");
+        Invoke(nameof(Despawn), deathDespawnDelay);
 
-
-        Invoke(
-            nameof(Despawn),
-            deathDespawnDelay
-        );
-        
-        gameManager.ShowNotification(1);   
-        
-    }
-
-
-    // Creates a separate temporary audio object so the sound survives enemy despawn.
-    private void PlayDeathSound(AudioClip clip)
-    {
-        if (clip == null)
+        if (gameManager == null)
         {
-            Debug.LogWarning("Death sound is not assigned for " + gameObject.name);
-            return;
+            gameManager = GameManager.Instance;
         }
 
-        GameObject soundObject = new GameObject("TemporaryDeathSound");
-        soundObject.transform.position = transform.position;
+        if (gameManager != null)
+        {
+            gameManager.ShowNotification(1);
+        }
+    }
 
-        AudioSource source = soundObject.AddComponent<AudioSource>();
-        source.playOnAwake = false;
-        source.spatialBlend = 0f;
-        source.volume = deathSoundVolume;
-        source.clip = clip;
-        source.Play();
-
-        Destroy(soundObject, clip.length + 0.2f);
-        Debug.Log("Playing death sound: " + clip.name);
+    private void PlayDeathSound(AudioClip clip)
+    {
+        if (clip == null) return;
+        AudioSource.PlayClipAtPoint(clip, transform.position, deathSoundVolume);
     }
 
     void Despawn()
@@ -690,163 +585,110 @@ public class EnemyAI : MonoBehaviour
         Destroy(gameObject);
     }
 
-
     void LostPlayer()
     {
-        agent.speed = chaseSpeed;
+        if (agent == null) return;
 
+        agent.speed = chaseSpeed;
         agent.isStopped = false;
 
         SetAnimation("Idle");
 
-
         if (DetectPlayer())
         {
             currentState = EnemyState.Chase;
-
             playerMemoryTimer = playerMemoryTime;
-
             return;
         }
 
-
         playerMemoryTimer -= Time.deltaTime;
-
 
         if (hasLastKnownPlayerPosition)
         {
-            agent.SetDestination(
-                lastKnownPlayerPosition
-            );
-
+            agent.SetDestination(lastKnownPlayerPosition);
             SetAnimation("Run");
         }
-
 
         if (playerMemoryTimer <= 0f)
         {
             playerMemoryTimer = 0f;
-
             investigationCount = 0;
-
             hasInvestigationPoint = false;
-
             waitingAtInvestigationPoint = false;
-
             currentState = EnemyState.Investigate;
         }
     }
 
-
     void Investigate()
     {
+        if (agent == null) return;
+
         agent.speed = patrolSpeed;
-
         agent.isStopped = false;
-
 
         if (DetectPlayer())
         {
             currentState = EnemyState.Chase;
-
             investigationCount = 0;
-
             hasInvestigationPoint = false;
-
             waitingAtInvestigationPoint = false;
-
             return;
         }
-
 
         if (waitingAtInvestigationPoint)
         {
             SetAnimation("Idle");
-
             investigationWaitTimer -= Time.deltaTime;
-
 
             if (investigationWaitTimer <= 0f)
             {
                 waitingAtInvestigationPoint = false;
-
                 investigationCount++;
-
                 hasInvestigationPoint = false;
             }
 
             return;
         }
 
-
         if (investigationCount >= investigationPoints)
         {
             hasLastKnownPlayerPosition = false;
-
             hasInvestigationPoint = false;
-
             investigationCount = 0;
-
             currentState = EnemyState.Patrol;
-
             hasRoamPoint = false;
-
             return;
         }
-
 
         if (!hasInvestigationPoint)
         {
             PickInvestigationPoint();
-
             return;
         }
 
-
-        agent.SetDestination(
-            investigationPoint
-        );
-
+        agent.SetDestination(investigationPoint);
         SetAnimation("Walk");
 
-
-        if (!agent.pathPending &&
-            agent.remainingDistance <= agent.stoppingDistance)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
         {
             waitingAtInvestigationPoint = true;
-
-            investigationWaitTimer =
-                waitAtInvestigationPoint;
-
+            investigationWaitTimer = waitAtInvestigationPoint;
             SetAnimation("Idle");
         }
     }
 
-
     void PickRandomRoamPoint()
     {
-        Vector3 randomDirection =
-            Random.insideUnitSphere *
-            roamRadius;
+        if (agent == null) return;
 
-        randomDirection +=
-            transform.position;
+        Vector3 randomDirection = Random.insideUnitSphere * roamRadius;
+        randomDirection += transform.position;
 
-
-        if (NavMesh.SamplePosition(
-            randomDirection,
-            out NavMeshHit hit,
-            roamRadius,
-            NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, roamRadius, NavMesh.AllAreas))
         {
-            roamPoint =
-                hit.position;
-
+            roamPoint = hit.position;
             hasRoamPoint = true;
-
-            agent.SetDestination(
-                roamPoint
-            );
+            agent.SetDestination(roamPoint);
         }
         else
         {
@@ -854,31 +696,18 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-
     void PickInvestigationPoint()
     {
-        Vector3 randomDirection =
-            Random.insideUnitSphere *
-            investigationRadius;
+        if (agent == null) return;
 
-        randomDirection +=
-            lastKnownPlayerPosition;
+        Vector3 randomDirection = Random.insideUnitSphere * investigationRadius;
+        randomDirection += lastKnownPlayerPosition;
 
-
-        if (NavMesh.SamplePosition(
-            randomDirection,
-            out NavMeshHit hit,
-            investigationRadius,
-            NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(randomDirection, out NavMeshHit hit, investigationRadius, NavMesh.AllAreas))
         {
-            investigationPoint =
-                hit.position;
-
+            investigationPoint = hit.position;
             hasInvestigationPoint = true;
-
-            agent.SetDestination(
-                investigationPoint
-            );
+            agent.SetDestination(investigationPoint);
         }
         else
         {
@@ -886,40 +715,22 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-
-    bool IsLayer(
-        GameObject obj,
-        LayerMask layer)
+    bool IsLayer(GameObject obj, LayerMask layer)
     {
-        return
-            (layer.value &
-            (1 << obj.layer)) != 0;
+        return (layer.value & (1 << obj.layer)) != 0;
     }
 
-
-    void SetAnimation(
-        string animationName)
+    void SetAnimation(string animationName)
     {
-        if (animator == null)
-            return;
+        if (animator == null) return;
 
+        // Skip if already in this animation state
+        if (currentAnimState == animationName) return;
+        currentAnimState = animationName;
 
-        animator.SetBool(
-            "Idle",
-            animationName == "Idle"
-        );
-
-
-        animator.SetBool(
-            "Walk",
-            animationName == "Walk"
-        );
-
-
-        animator.SetBool(
-            "Run",
-            animationName == "Run"
-        );
+        animator.SetBool(IdleHash, animationName == "Idle");
+        animator.SetBool(WalkHash, animationName == "Walk");
+        animator.SetBool(RunHash, animationName == "Run");
 
         if (animationName == "Walk")
         {
@@ -935,48 +746,32 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-
     void SmoothRotation()
     {
-        if (agent == null)
-            return;
+        if (agent == null) return;
 
-
-        Vector3 direction =
-            agent.steeringTarget -
-            transform.position;
-
+        Vector3 direction = agent.steeringTarget - transform.position;
         direction.y = 0f;
 
-
-        if (direction != Vector3.zero)
+        if (direction.sqrMagnitude > 0.001f)
         {
-            Quaternion targetRotation =
-                Quaternion.LookRotation(direction);
-
-
-            transform.rotation =
-                Quaternion.Slerp(
-                    transform.rotation,
-                    targetRotation,
-                    rotationSpeed *
-                    Time.deltaTime
-                );
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                targetRotation,
+                rotationSpeed * Time.deltaTime
+            );
         }
     }
 
     void PlayMovementAudio(AudioClip clip)
     {
-        if (enemyAudioSource == null)
-            return;
+        if (enemyAudioSource == null) return;
 
-        // Do not restart the same movement sound every frame.
-        if (currentMovementClip == clip &&
-            enemyAudioSource.isPlaying)
+        if (currentMovementClip == clip && enemyAudioSource.isPlaying)
             return;
 
         currentMovementClip = clip;
-
         enemyAudioSource.Stop();
 
         if (clip != null)
@@ -1000,197 +795,85 @@ public class EnemyAI : MonoBehaviour
 
     void PlayAttackAudio()
     {
-        if (attackingAudio == null)
-        {
-            Debug.LogError("Punch clip is missing!");
-            return;
-        }
-
-        Debug.Log("Punch clip: " + attackingAudio.name);
-
-        AudioSource.PlayClipAtPoint(
-            attackingAudio,
-            transform.position,
-            1f
-        );
+        if (attackingAudio == null) return;
+        AudioSource.PlayClipAtPoint(attackingAudio, transform.position, 1f);
     }
-    
+
     void OnDrawGizmos()
     {
-        Vector3 origin =
-            transform.position +
-            Vector3.up * rayHeight;
-
+        Vector3 origin = transform.position + Vector3.up * rayHeight;
 
         for (int i = 0; i < rayCount; i++)
         {
-            float angle =
-                -detectionAngle / 2f +
-                (detectionAngle /
-                (rayCount - 1)) * i;
-
-
-            Vector3 direction =
-                Quaternion.Euler(
-                    0f,
-                    angle,
-                    0f
-                ) * transform.forward;
-
-
+            float angle = -detectionAngle / 2f + (detectionAngle / (rayCount - 1)) * i;
+            Vector3 direction = Quaternion.Euler(0f, angle, 0f) * transform.forward;
             Gizmos.color = Color.red;
 
-
-            if (Physics.Raycast(
-                origin,
-                direction,
-                out RaycastHit hit,
-                rayDistance))
+            if (Physics.Raycast(origin, direction, out RaycastHit hit, rayDistance))
             {
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    playerLayer))
+                if (IsLayer(hit.collider.gameObject, playerLayer))
                 {
                     Gizmos.color = Color.green;
                 }
-                else if (IsLayer(
-                    hit.collider.gameObject,
-                    obstacleLayer))
+                else if (IsLayer(hit.collider.gameObject, obstacleLayer))
                 {
                     Gizmos.color = Color.yellow;
                 }
 
-
-                Gizmos.DrawRay(
-                    origin,
-                    direction.normalized *
-                    hit.distance
-                );
-
-
-                Gizmos.DrawSphere(
-                    hit.point,
-                    0.08f
-                );
+                Gizmos.DrawRay(origin, direction.normalized * hit.distance);
+                Gizmos.DrawSphere(hit.point, 0.08f);
             }
             else
             {
-                Gizmos.DrawRay(
-                    origin,
-                    direction.normalized *
-                    rayDistance
-                );
+                Gizmos.DrawRay(origin, direction.normalized * rayDistance);
             }
         }
 
-
         Gizmos.color = Color.cyan;
-
-        Gizmos.DrawWireSphere(
-            transform.position,
-            roamRadius
-        );
-
+        Gizmos.DrawWireSphere(transform.position, roamRadius);
 
         if (hasLastKnownPlayerPosition)
         {
             Gizmos.color = Color.magenta;
-
-            Gizmos.DrawWireSphere(
-                lastKnownPlayerPosition,
-                0.3f
-            );
-
-            Gizmos.DrawWireSphere(
-                lastKnownPlayerPosition,
-                investigationRadius
-            );
+            Gizmos.DrawWireSphere(lastKnownPlayerPosition, 0.3f);
+            Gizmos.DrawWireSphere(lastKnownPlayerPosition, investigationRadius);
         }
-
 
         if (hasInvestigationPoint)
         {
             Gizmos.color = Color.white;
-
-            Gizmos.DrawSphere(
-                investigationPoint,
-                0.2f
-            );
+            Gizmos.DrawSphere(investigationPoint, 0.2f);
         }
 
-
-        Vector3 attackOrigin =
-            transform.position +
-            Vector3.up * attackRayHeight;
-
+        Vector3 attackOrigin = transform.position + Vector3.up * attackRayHeight;
 
         for (int i = 0; i < attackRayCount; i++)
         {
-            float angle =
-                -attackAngle / 2f +
-                (attackAngle /
-                (attackRayCount - 1)) * i;
-
-
-            Vector3 direction =
-                Quaternion.Euler(
-                    0f,
-                    angle,
-                    0f
-                ) * transform.forward;
-
-
+            float angle = -attackAngle / 2f + (attackAngle / (attackRayCount - 1)) * i;
+            Vector3 direction = Quaternion.Euler(0f, angle, 0f) * transform.forward;
             Gizmos.color = Color.blue;
 
-
-            if (Physics.Raycast(
-                attackOrigin,
-                direction,
-                out RaycastHit hit,
-                attackDistance))
+            if (Physics.Raycast(attackOrigin, direction, out RaycastHit hit, attackDistance))
             {
-                if (IsLayer(
-                    hit.collider.gameObject,
-                    playerLayer))
+                if (IsLayer(hit.collider.gameObject, playerLayer))
                 {
                     Gizmos.color = Color.green;
                 }
-                else if (IsLayer(
-                    hit.collider.gameObject,
-                    obstacleLayer))
+                else if (IsLayer(hit.collider.gameObject, obstacleLayer))
                 {
                     Gizmos.color = Color.yellow;
                 }
 
-
-                Gizmos.DrawRay(
-                    attackOrigin,
-                    direction.normalized *
-                    hit.distance
-                );
-
-
-                Gizmos.DrawSphere(
-                    hit.point,
-                    0.06f
-                );
+                Gizmos.DrawRay(attackOrigin, direction.normalized * hit.distance);
+                Gizmos.DrawSphere(hit.point, 0.06f);
             }
             else
             {
-                Gizmos.DrawRay(
-                    attackOrigin,
-                    direction.normalized *
-                    attackDistance
-                );
+                Gizmos.DrawRay(attackOrigin, direction.normalized * attackDistance);
             }
         }
 
-
         Gizmos.color = Color.red;
-
-        Gizmos.DrawWireSphere(
-            transform.position,
-            attackDistance
-        );
+        Gizmos.DrawWireSphere(transform.position, attackDistance);
     }
 }

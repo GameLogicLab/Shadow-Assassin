@@ -10,7 +10,11 @@ public class PlayerWeaponVisuals : MonoBehaviour
     {
         // 0 = Knife, 1 = Kunai
         int selectedWeapon = PlayerPrefs.GetInt("SelectedWeapon", 0);
+        RefreshVisuals(selectedWeapon);
+    }
 
+    public void RefreshVisuals(int selectedWeapon)
+    {
         bool useKnife = selectedWeapon == 0;
 
         if (knifeModel != null)

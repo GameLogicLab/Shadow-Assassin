@@ -25,21 +25,30 @@ public class KunaiProjectile : MonoBehaviour
         transform.position += transform.forward * speed * Time.deltaTime;
     }
 
-    private void OnTriggerEnter(Collider other)
+private void OnTriggerEnter(Collider other)
+{
+
+    if (hasHit)
+        return;
+
+    if (other.name == "Bounds")
+        return;
+
+    hasHit = true;
+
+    bool isEnemy = (enemyLayer.value & (1 << other.gameObject.layer)) != 0;
+
+    if (isEnemy)
     {
-        if (hasHit)
-            return;
+        EnemyAI enemy = other.GetComponentInParent<EnemyAI>();
 
-        if (((1 << other.gameObject.layer) & enemyLayer.value) != 0)
+        if (enemy != null)
         {
-            EnemyAI enemy = other.GetComponentInParent<EnemyAI>();
-
-            if (enemy != null)
-            {
-                hasHit = true;
-                enemy.TakeDamage(damage, true);
-                Destroy(gameObject);
-            }
+            enemy.TakeDamage(damage, true);
+            Debug.Log("Kunai damaged: " + enemy.name);
         }
     }
+
+    Destroy(gameObject);
+}
 }

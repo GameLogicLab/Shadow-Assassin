@@ -1,4 +1,3 @@
-
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,8 +15,9 @@ public class EnemyRadar : MonoBehaviour
     public float markerEdgePadding = 10f;
     public float refreshInterval = 0.25f;
 
-    private readonly Dictionary<Transform, RectTransform>
-        markers = new Dictionary<Transform, RectTransform>();
+    private readonly Dictionary<Transform, RectTransform> markers = new Dictionary<Transform, RectTransform>();
+    private readonly HashSet<Transform> currentEnemies = new HashSet<Transform>();
+    private readonly List<Transform> removedMarkers = new List<Transform>();
 
     private float refreshTimer;
 
@@ -29,11 +29,7 @@ public class EnemyRadar : MonoBehaviour
             playerMarker == null ||
             enemyMarkerPrefab == null)
         {
-            Debug.LogError(
-                "EnemyRadar: Assign all references in the Inspector.",
-                this
-            );
-
+            Debug.LogError("EnemyRadar: Assign all references in the Inspector.", this);
             enabled = false;
             return;
         }
@@ -64,7 +60,6 @@ public class EnemyRadar : MonoBehaviour
             return;
 
         // Rotate only the green player marker.
-        // Assumes the arrow points upward by default.
         playerMarker.localEulerAngles = new Vector3(
             0f,
             0f,
@@ -74,22 +69,16 @@ public class EnemyRadar : MonoBehaviour
 
     void RefreshEnemies()
     {
-        EnemyRadarTarget[] enemies =
-            FindObjectsByType<EnemyRadarTarget>(
-                FindObjectsSortMode.None
-            );
+        currentEnemies.Clear();
+        IReadOnlyList<EnemyRadarTarget> activeTargets = EnemyRadarTarget.ActiveTargets;
 
-        HashSet<Transform> currentEnemies =
-            new HashSet<Transform>();
-
-        foreach (EnemyRadarTarget enemy in enemies)
+        for (int i = 0; i < activeTargets.Count; i++)
         {
-            if (enemy == null ||
-                !enemy.gameObject.activeInHierarchy)
+            EnemyRadarTarget enemy = activeTargets[i];
+            if (enemy == null || !enemy.gameObject.activeInHierarchy)
                 continue;
 
             Transform enemyTransform = enemy.transform;
-
             if (enemyTransform == player)
                 continue;
 
@@ -97,20 +86,12 @@ public class EnemyRadar : MonoBehaviour
 
             if (!markers.ContainsKey(enemyTransform))
             {
-                GameObject marker = Instantiate(
-                    enemyMarkerPrefab,
-                    markerContainer
-                );
-
-                RectTransform markerRect =
-                    marker.GetComponent<RectTransform>();
+                GameObject marker = Instantiate(enemyMarkerPrefab, markerContainer);
+                RectTransform markerRect = marker.GetComponent<RectTransform>();
 
                 if (markerRect == null)
                 {
-                    Debug.LogError(
-                        "Enemy marker prefab needs a RectTransform."
-                    );
-
+                    Debug.LogError("Enemy marker prefab needs a RectTransform.");
                     Destroy(marker);
                     continue;
                 }
@@ -124,43 +105,38 @@ public class EnemyRadar : MonoBehaviour
             }
         }
 
-        List<Transform> removed = new List<Transform>();
-
+        removedMarkers.Clear();
         foreach (var entry in markers)
         {
-            if (entry.Key == null ||
-                !currentEnemies.Contains(entry.Key))
+            if (entry.Key == null || !currentEnemies.Contains(entry.Key))
             {
                 if (entry.Value != null)
                     Destroy(entry.Value.gameObject);
 
-                removed.Add(entry.Key);
+                removedMarkers.Add(entry.Key);
             }
         }
 
-        foreach (Transform enemy in removed)
+        for (int i = 0; i < removedMarkers.Count; i++)
         {
-            markers.Remove(enemy);
+            markers.Remove(removedMarkers[i]);
         }
     }
 
     void UpdateMarkerPositions()
     {
-        if (radarArea == null || radarRange <= 0f)
+        if (radarArea == null || radarRange <= 0.001f || player == null)
             return;
 
         float halfWidth = radarArea.rect.width * 0.5f;
         float halfHeight = radarArea.rect.height * 0.5f;
 
-        float usableRadiusX = Mathf.Max(
-            0f,
-            halfWidth - markerEdgePadding
-        );
+        float usableRadiusX = Mathf.Max(0f, halfWidth - markerEdgePadding);
+        float usableRadiusY = Mathf.Max(0f, halfHeight - markerEdgePadding);
 
-        float usableRadiusY = Mathf.Max(
-            0f,
-            halfHeight - markerEdgePadding
-        );
+        Vector3 playerPos = player.position;
+        float invRange = 1f / radarRange;
+        float rangeSqr = radarRange * radarRange;
 
         foreach (var entry in markers)
         {
@@ -170,33 +146,18 @@ public class EnemyRadar : MonoBehaviour
             if (enemy == null || marker == null)
                 continue;
 
-            // Enemy position relative to player.
-            Vector3 difference =
-                enemy.position - player.position;
+            Vector3 diff = enemy.position - playerPos;
+            Vector2 direction = new Vector2(diff.x, diff.z);
 
-            // Ignore height differences.
-            difference.y = 0f;
-
-            // FIXED RADAR:
-            // Do not rotate this direction by the player's rotation.
-            Vector2 direction = new Vector2(
-                difference.x,
-                difference.z
-            );
-
-            // Keep distant enemies at the radar edge.
-            float distance = direction.magnitude;
-
-            if (distance > radarRange)
+            float sqrDist = direction.sqrMagnitude;
+            if (sqrDist > rangeSqr)
             {
-                direction =
-                    direction.normalized * radarRange;
+                direction = direction.normalized * radarRange;
             }
 
-            // Convert world position to radar UI position.
             Vector2 uiPosition = new Vector2(
-                direction.x / radarRange * usableRadiusX,
-                direction.y / radarRange * usableRadiusY
+                (direction.x * invRange) * usableRadiusX,
+                (direction.y * invRange) * usableRadiusY
             );
 
             marker.anchoredPosition = uiPosition;

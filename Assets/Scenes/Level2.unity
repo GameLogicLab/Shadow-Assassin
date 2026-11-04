@@ -531,7 +531,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3941527801506635695, guid: e2dcf75a62d6fa048a27a099f7fa9ac7, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 9.750001
+      value: 10.100001
       objectReference: {fileID: 0}
     - target: {fileID: 3941527801506635695, guid: e2dcf75a62d6fa048a27a099f7fa9ac7, type: 3}
       propertyPath: m_LocalPosition.z
@@ -2917,6 +2917,10 @@ PrefabInstance:
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
       value: ResumeGame
       objectReference: {fileID: 0}
+    - target: {fileID: 7190913656040235687, guid: 1a2827ad11b441c4f8347923fe0e142a, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7386317017917446357, guid: 1a2827ad11b441c4f8347923fe0e142a, type: 3}
       propertyPath: m_OnClick.m_PersistentCalls.m_Calls.Array.size
       value: 1
@@ -3086,7 +3090,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4767313883031783282, guid: 02a1cf15c51bff0448e7591e251e000d, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 9.750001
+      value: 10.100001
       objectReference: {fileID: 0}
     - target: {fileID: 4767313883031783282, guid: 02a1cf15c51bff0448e7591e251e000d, type: 3}
       propertyPath: m_LocalPosition.z
